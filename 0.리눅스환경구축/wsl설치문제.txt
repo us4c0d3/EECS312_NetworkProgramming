@@ -1,0 +1,3 @@
+ppt 대로 했는데 wsl이 제대로 설치되지 않는다면 아래 링크 지시에 따라 설치해보시기 바랍니다.
+
+https://github.com/iot-standards-laboratory/Lecture.netProgramming
