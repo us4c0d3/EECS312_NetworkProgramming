@@ -20,8 +20,8 @@ int main(int argc, char *argv[])
     int str_len;
     char buf[BUF_SIZE];
     struct sockaddr_in adr;
-    struct ip_mreq join_adr;
-    if(argc!=3){
+    
+    if(argc!=2){
         printf("Usage : %s <PORT>\n", argv[0]);
         exit(1);
     }
@@ -34,11 +34,6 @@ int main(int argc, char *argv[])
     
     if(bind(recv_sock, (struct sockaddr*)&adr, sizeof(adr))==-1)
         error_handling("bind() error");
-    
-    join_adr.imr_multiaddr.s_addr=inet_addr(argv[1]);
-    join_adr.imr_interface.s_addr=htonl(INADDR_ANY);
-    
-    setsockopt(recv_sock, IPPROTO_IP, IP_ADD_MEMBERSHIP, (void*)&join_adr, sizeof(join_adr));
     
     while(1)
     {
