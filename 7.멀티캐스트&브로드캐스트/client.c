@@ -9,9 +9,11 @@
 #define CALC_PORT 8081
 #define PORT 8082
 
+#define BUF_SIZE 1024
+
 int main(int argc, char** argv) {
     int discovery_sockfd, sockfd;
-    char buf[1024];
+    char buf[BUF_SIZE] = "";
     int opCount;
     int opResult;
     struct sockaddr_in calc_adr, discovery_adr, recv_adr;
@@ -26,15 +28,16 @@ int main(int argc, char** argv) {
 
     printf("Start to find calc server\n");
     sendto(discovery_sockfd, "client", strlen("client"), 0, (struct sockaddr*)&discovery_adr, sizeof(discovery_adr));
-    recvfrom(discovery_sockfd, buf, 1024, 0, (struct sockaddr*)&recv_adr, &recv_adr_sz);
+    recvfrom(discovery_sockfd, buf, BUF_SIZE, 0, (struct sockaddr*)&recv_adr, &recv_adr_sz);
 
     if(!strcmp(buf, "fail")) {
         printf("FAIL\n");
         return -1;
-    }
+    } else
+        printf("Found calc server(%d)\n", atoi(buf));
+    close(discovery_sockfd);
 
-    printf("Found calc server(%d)\n", atoi(buf));
-
+    memset(buf, 0, BUF_SIZE);
     if((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
         perror("socket connection failed");
         return -1;
@@ -49,13 +52,12 @@ int main(int argc, char** argv) {
     scanf("%d", &opCount);
     buf[0] = (char)opCount;
 
-
     if(buf[0] > 0) {
         if(connect(sockfd, (const struct sockaddr*)&calc_adr, sizeof(calc_adr)) < 0) {
             perror("connect error");
             return -1;
         }
-        
+
         for(int i = 0; i < opCount; i++) {
             printf("Operand %d: ", i);
             scanf(" %d", (int*)&buf[(i * 4) + 1]);
