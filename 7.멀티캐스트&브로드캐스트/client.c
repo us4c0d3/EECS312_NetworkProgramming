@@ -13,10 +13,11 @@
 
 int main(int argc, char** argv) {
     int discovery_sockfd, sockfd;
-    char buf[BUF_SIZE] = "";
+    char buf[BUF_SIZE] = {0, };
     int opCount;
     int opResult;
     struct sockaddr_in calc_adr, discovery_adr, recv_adr;
+    int so_brd=1;
     socklen_t recv_adr_sz;
 
     // discovery socket prepare
@@ -26,15 +27,32 @@ int main(int argc, char** argv) {
     discovery_adr.sin_addr.s_addr = inet_addr("255.255.255.255");
     discovery_adr.sin_port = htons(DISCOVERY_PORT);
 
-    printf("Start to find calc server\n");
-    sendto(discovery_sockfd, "client", strlen("client"), 0, (struct sockaddr*)&discovery_adr, sizeof(discovery_adr));
-    recvfrom(discovery_sockfd, buf, BUF_SIZE, 0, (struct sockaddr*)&recv_adr, &recv_adr_sz);
+    memset(&recv_adr, 0, sizeof(recv_adr));
+    recv_adr.sin_family = AF_INET;
+    recv_adr.sin_addr.s_addr = htonl(INADDR_ANY);
+    recv_adr.sin_port = htons(PORT);
+    recv_adr_sz = sizeof(recv_adr);
 
+    setsockopt(discovery_sockfd, SOL_SOCKET, SO_BROADCAST, (void*)&so_brd, sizeof(so_brd));
+
+    if(bind(discovery_sockfd, (struct sockaddr*)&recv_adr, recv_adr_sz) == -1) {
+        perror("bind() error");
+        return -1;
+    }
+
+    printf("Start to find calc server\n");
+    if(sendto(discovery_sockfd, "client", strlen("client"), 0, (struct sockaddr*)&discovery_adr, sizeof(discovery_adr)) == -1) {
+        perror("sendto() error");
+        return -1;
+    }
+    recvfrom(discovery_sockfd, buf, BUF_SIZE, 0, (struct sockaddr*)&recv_adr, &recv_adr_sz);
+    printf("Received calc server port: %s\n", buf);
     if(!strcmp(buf, "fail")) {
         printf("FAIL\n");
         return -1;
-    } else
-        printf("Found calc server(%d)\n", atoi(buf));
+    }
+    int port = atoi(buf);
+    printf("Found calc server(%d)\n", port);
     close(discovery_sockfd);
 
     memset(buf, 0, BUF_SIZE);
@@ -46,7 +64,7 @@ int main(int argc, char** argv) {
     // calc socket prepare
     calc_adr.sin_family = AF_INET;
     calc_adr.sin_addr.s_addr = inet_addr("127.0.0.1");
-    calc_adr.sin_port = htons(atoi(buf));
+    calc_adr.sin_port = htons(port);
 
     printf("Operand count: ");
     scanf("%d", &opCount);
