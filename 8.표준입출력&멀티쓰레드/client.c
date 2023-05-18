@@ -13,13 +13,13 @@
 void* send_msg(void* arg);
 void* recv_msg(void* arg);
 
-char name[NAME_SIZE] = "[DEFAULT]";
-char msg[BUF_SIZE];
+char name[NAME_SIZE];
+char buf[BUF_SIZE];
 
 struct iovec vec[2];
 
 
-int main(int argc, char* argv) {
+int main(int argc, char* argv[]) {
     int sock;
     struct sockaddr_in serv_addr;
     pthread_t snd_thread, rcv_thread;
@@ -28,7 +28,7 @@ int main(int argc, char* argv) {
         printf("Usage: %s <port> <IP> <name>\n", argv[0]);
         exit(1);
     }
-    if(strlen(argv[3]) != 4) {
+    if(strlen(argv[3]) != NAME_SIZE) {
         printf("ID have to be 4\n");
         exit(1);
     }
@@ -38,7 +38,7 @@ int main(int argc, char* argv) {
 
     vec[0].iov_base = name;
     vec[0].iov_len = NAME_SIZE + 1;
-    vec[1].iov_base = msg;
+    vec[1].iov_base = buf;
     vec[1].iov_len = BUF_SIZE;
 
     sock = socket(PF_INET, SOCK_STREAM, 0);
@@ -64,15 +64,30 @@ int main(int argc, char* argv) {
 
 void* send_msg(void* arg) {
     int sock = *((int*)arg);
-    char name_msg[NAME_SIZE + BUF_SIZE];
+    int opCount;
     while(1) {
-        fgets(msg, BUF_SIZE, stdin);
-        if(!strcmp(msg, "q\n") || !strcmp(msg, "Q\n")) {
+        memset(buf, 0, BUF_SIZE);
+        scanf("%d", &opCount);
+        buf[0] = (char)opCount;
+        if(buf[0] <= 0) {
+            printf("Overflow Number(%d) - Closed client\n", buf[0]);
+            writev(sock, vec, 2);
             close(sock);
             exit(0);
         }
-        sprintf(name_msg, "%s %s", name, msg);
-        write(sock, name_msg, strlen(name_msg));
+        
+        // input operand
+        for(int i = 0; i < opCount; i++) {
+            scanf(" %d", (int*)&buf[(i * 4) + 1]);
+        }
+
+        // input operator
+        for(int i = 0; i < opCount - 1; i++) {
+            scanf(" %c", &buf[(opCount * 4) + i + 1]);
+        }
+
+        // send
+        writev(sock, vec, 2);
     }
     return NULL;
 }

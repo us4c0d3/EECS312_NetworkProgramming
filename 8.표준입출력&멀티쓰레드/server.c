@@ -11,9 +11,16 @@
 #include <arpa/inet.h>
 #include <time.h>
 
+#define BUF_SIZE 1024
+#define NAME_SIZE 4
+
 int clnt_cnt = 0;
 int clnt_socks[256];
 pthread_mutex_t mutx;
+
+char name[NAME_SIZE];
+char buf[BUF_SIZE];
+struct iovec vec[2];
 
 void* handle_clnt(void* arg);
 void send_msg(char* msg, int len);
@@ -27,6 +34,11 @@ int main(int argc, char* argv[]) {
         printf("Usage: %s <port>\n", argv[0]);
         exit(1);
     }
+
+    vec[0].iov_base = name;
+    vec[0].iov_len = NAME_SIZE + 1;
+    vec[1].iov_base = buf;
+    vec[1].iov_len = BUF_SIZE;
 
     pthread_mutex_init(&mutx, NULL);
     serv_sock = socket(PF_INET, SOCK_STREAM, 0);
@@ -53,23 +65,64 @@ int main(int argc, char* argv[]) {
         clnt_socks[clnt_cnt++] = clnt_sock;
         pthread_mutex_unlock(&mutx);
 
-        pthread_create(&t_id, NULL, thread_main, (void*)&clnt_sock);
+        pthread_create(&t_id, NULL, handle_clnt, (void*)&clnt_sock);
         pthread_detach(t_id);
-        printf("Connected client IP: %s \n", inet_ntoa(clnt_addr.sin_addr));
+        printf("Connected client Port: %d\n", clnt_addr.sin_port);
     }
 
     close(serv_sock);
     return 0;
 }
 
-void* handle_clnt(void* arg) {
+void* handle_clnt(void* arg) {      // worker thread
     int clnt_sock = *((int*)arg);
-    int str_len = 0, i;
+    int str_len = 0, i, j;
+    int res = 0;
     char msg[BUF_SIZE];
+    int operand[BUF_SIZE] = {0, };
+    int opCount = 0;
+    char oper;
 
-    while((str_len = read(clnt_sock, msg, sizeof(msg))) != 0) {
-        send_msg(msg, str_len);
-    }
+
+    while(1) {
+        readv(clnt_sock, vec, 2);
+        opCount = (int)buf[0];
+        if(opCount <= 0) {
+            break;
+        }
+        j = sprintf(msg, "[%s]", name);
+
+        for(i = 0; i < opCount; i++) {
+            operand[i] = (int)buf[(i * 4) + 1];
+        }
+
+        res = operand[0];
+        j += sprintf(msg + j, " %d", operand[0]);
+        for(i = 0; i < opCount - 1; i++) {
+            oper = buf[(opCount * 4) + i + 1];
+            switch(oper) {
+                case '+':
+                    res += operand[i + 1];
+                    j += sprintf(msg + j, " + %d", operand[i + 1]);
+                    break;
+                case '-':
+                    res -= operand[i + 1];
+                    j += sprintf(msg + j, " - %d", operand[i + 1]);
+                    break;
+                case '*':
+                    res *= operand[i + 1];
+                    j += sprintf(msg + j, " * %d", operand[i + 1]);
+                    break;
+                case '/':
+                    res /= operand[i + 1];
+                    j += sprintf(msg + j, " / %d", operand[i + 1]);
+                    break;
+            }
+        }
+
+        j += sprintf(msg + j, " = %d\n", res);
+        send_msg(msg, j);
+    } 
 
     pthread_mutex_lock(&mutx);
     for(i = 0; i < clnt_cnt; i++) {
@@ -83,6 +136,7 @@ void* handle_clnt(void* arg) {
     clnt_cnt--;
     pthread_mutex_unlock(&mutx);
     close(clnt_sock);
+    printf("Closed client\n");
     return NULL;
 }
 
